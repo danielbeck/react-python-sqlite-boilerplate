@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { fetchAPI } from './api'
-import './App.css'
+import ItemList from './components/ItemList'
+import ItemForm from './components/ItemForm'
+import './global.scss'
 
 function App() {
   const [items, setItems] = useState([])
@@ -30,14 +32,14 @@ function App() {
   const createItem = async (e) => {
     e.preventDefault()
     if (!newItemName.trim()) return
-    
+
     try {
       await fetchAPI('/items', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          name: newItemName, 
-          description: newItemDesc 
+        body: JSON.stringify({
+          name: newItemName,
+          description: newItemDesc
         })
       })
       setNewItemName('')
@@ -64,40 +66,19 @@ function App() {
         {loading && <p>Loading...</p>}
         {error && <p style={{ color: 'red' }}>{error}</p>}
       </header>
-      
+
       <main>
-        <div className="create-form">
-          <h2>Add New Item</h2>
-          <form onSubmit={createItem}>
-            <input
-              type="text"
-              placeholder="Item name"
-              value={newItemName}
-              onChange={(e) => setNewItemName(e.target.value)}
-              required
-            />
-            <input
-              type="text"
-              placeholder="Description (optional)"
-              value={newItemDesc}
-              onChange={(e) => setNewItemDesc(e.target.value)}
-            />
-            <button type="submit">Add Item</button>
-          </form>
-        </div>
-        
-        <div className="item-list">
-          <h2>Items ({items.length})</h2>
-          <ul>
-            {items.map(item => (
-              <li key={item.id}>
-                <strong>{item.name}</strong>
-                {item.description && <span> - {item.description}</span>}
-                <button onClick={() => deleteItem(item.id)}>Delete</button>
-              </li>
-            ))}
-          </ul>
-        </div>
+        <ItemForm
+          onSubmit={createItem}
+          newItemName={newItemName}
+          setNewItemName={setNewItemName}
+          newItemDesc={newItemDesc}
+          setNewItemDesc={setNewItemDesc}
+        />
+        <ItemList
+          items={items}
+          onDelete={deleteItem}
+        />
       </main>
     </div>
   )
