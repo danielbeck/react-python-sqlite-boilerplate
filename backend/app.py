@@ -58,96 +58,21 @@ def index():
         'endpoints': ['/items']
     })
 
-# ============ ITEMS ENDPOINTS ============
-
-@app.route('/items', methods=['GET'])
-def get_items():
-    """Get all items"""
-    conn = get_db()
-    items = conn.execute('SELECT * FROM items ORDER BY id').fetchall()
-    conn.close()
-    return jsonify({'items': [dict_from_row(i) for i in items]})
 
 
+# Register Blueprints for endpoints
 
+try:
+    # If run as module (python3 -m backend.app)
+    from backend.endpoints.items import bp as items_bp
+except ImportError:
+    # If run as script (python3 app.py)
+    from endpoints.items import bp as items_bp
 
-@app.route('/items', methods=['POST'])
-def create_item():
-    """Create a new item"""
-    data = request.json
-    
-    if not data or 'name' not in data:
-        return jsonify({'error': 'Name is required'}), 400
-    
-    conn = get_db()
-    cursor = conn.cursor()
-    
-    cursor.execute('''
-        INSERT INTO items (name, description)
-        VALUES (?, ?)
-    ''', (data['name'], data.get('description', '')))
-    
-    item_id = cursor.lastrowid
-    conn.commit()
-    conn.close()
-    
-    return jsonify({'id': item_id, 'message': 'Item created'}), 201
-
-@app.route('/items/<int:item_id>', methods=['GET'])
-def get_item(item_id):
-    """Get a specific item"""
-    conn = get_db()
-    item = conn.execute('SELECT * FROM items WHERE id = ?', (item_id,)).fetchone()
-    conn.close()
-    
-    if item:
-        return jsonify({'item': dict_from_row(item)})
-    return jsonify({'error': 'Item not found'}), 404
-
-@app.route('/items/<int:item_id>', methods=['PUT'])
-def update_item(item_id):
-    """Update an item"""
-    data = request.json
-    if not data:
-        return jsonify({'error': 'No data provided'}), 400
-    
-    conn = get_db()
-    cursor = conn.cursor()
-    
-    fields = []
-    values = []
-    
-    if 'name' in data:
-        fields.append('name = ?')
-        values.append(data['name'])
-    
-    if 'description' in data:
-        fields.append('description = ?')
-        values.append(data['description'])
-    
-    if not fields:
-        conn.close()
-        return jsonify({'error': 'No fields to update'}), 400
-    
-    fields.append('updated_at = CURRENT_TIMESTAMP')
-    values.append(item_id)
-    
-    cursor.execute(f"UPDATE items SET {', '.join(fields)} WHERE id = ?", values)
-    conn.commit()
-    conn.close()
-    
-    return jsonify({'message': 'Item updated'})
-
-@app.route('/items/<int:item_id>', methods=['DELETE'])
-def delete_item(item_id):
-    """Delete an item"""
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute('DELETE FROM items WHERE id = ?', (item_id,))
-    conn.commit()
-    conn.close()
-    
-    return jsonify({'message': 'Item deleted'})
+# Provide DB helpers to Blueprints via app config
+app.config['get_db'] = get_db
+app.config['dict_from_row'] = dict_from_row
+app.register_blueprint(items_bp)
 
 
 @app.errorhandler(Exception)
