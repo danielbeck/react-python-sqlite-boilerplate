@@ -12,6 +12,11 @@ CORS(app)
 
 # Setup file logging for unexpected exceptions (helps when running under CGI/Apache)
 log_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs', 'flask_error.log')
+try:
+    logs_dir = os.path.dirname(log_path)
+    os.makedirs(logs_dir, exist_ok=True)
+except Exception:
+    pass
 handler = logging.FileHandler(log_path)
 handler.setLevel(logging.ERROR)
 formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
