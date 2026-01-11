@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "npm run generate-config && npm-run-all --parallel vite backend",
+    "dev": "NODE_ENV=development npm run generate-config && npm-run-all --parallel vite backend",
     "vite": "vite",
     "backend": "cd ../backend && python3 app.py",
     "build": "vite build",

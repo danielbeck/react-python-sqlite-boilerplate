@@ -1,4 +1,4 @@
-++ # react-python-sqlite-boilerplate
+# react-python-sqlite-boilerplate
 
 A small React frontend paired with a Python/Flask backend (SQLite) — configured to run locally for development and as a CGI-backed app on shared hosting.
 
@@ -57,8 +57,33 @@ To initialize or reset sample data:
 python3 backend/init_db.py
 ```
 
-## Deployment (shared host)
-`config.json` controls deployment under `deployment`:
+## Deployment
 
-- `host`, `user` — SSH/rsync target
+The deployment process is managed by the `deploy.sh` script, which uses `config.json` for all environment and path settings.
+
+### Standard Deploy
+
+```bash
+./deploy.sh
+```
+- Syncs backend and frontend code to the configured remote directory.
+- Installs backend Python dependencies in a virtual environment (if not already present).
+- Initializes the backend database **only if** this is the first deploy (i.e., the backend directory did not previously exist).
+- Does **not** overwrite an existing database or sample data on redeploys.
+
+### Force Fresh Deploy (reset database/sample data)
+
+```bash
+./deploy.sh --force-fresh
+```
+- Performs all steps of a standard deploy.
+- **Always** (re)initializes the backend database by running `init_db.py` on the server, even if the backend directory already exists.
+- This will recreate tables if missing and insert sample data if the items table is empty. Existing data is preserved unless the schema is missing.
+
+**Note:**
+- The deploy script uses SSH and rsync. You must have SSH access to the configured host.
+- The backend virtual environment and dependencies are managed automatically on the server.
+- The frontend is built locally and deployed to the correct subdirectory as configured.
+
+See `deploy.sh` for full details and customization options.
 

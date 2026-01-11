@@ -20,11 +20,26 @@ let subDir = config.deployment.subDir || '';
 subDir = subDir.replace(/^\/+|\/+$/g, '');
 const domain = config.production.domain;
 
-// Generate frontend config
+// Determine environment: development (local) or production (cgi)
+const isDev = process.env.NODE_ENV === 'development';
+
+let API_BASE_PATH, BASE_URL;
+if (isDev) {
+    // Local Flask dev server, but all routes and API calls are under subDir
+    BASE_URL = subDir ? `/${subDir}/` : '/';
+    // Proxy API path for dev: e.g. /testing/api -> http://localhost:8000
+    API_BASE_PATH = BASE_URL + 'api';
+} else {
+    // Production CGI endpoint
+    API_BASE_PATH = subDir ? `/${subDir}/backend/api.cgi` : '/backend/api.cgi';
+    BASE_URL = subDir ? `/${subDir}/` : '/';
+}
+
 const frontendConfig = {
-    API_BASE_PATH: subDir ? `/${subDir}/backend/api.cgi` : '/backend/api.cgi',
-    BASE_URL: subDir ? `/${subDir}/` : '/',
+    API_BASE_PATH,
+    BASE_URL,
 };
+
 
 // Write to frontend/src/config.js
 const configContent = `// Auto-generated from config.json - DO NOT EDIT MANUALLY
@@ -32,11 +47,22 @@ const configContent = `// Auto-generated from config.json - DO NOT EDIT MANUALLY
 
 export const config = ${JSON.stringify(frontendConfig, null, 2)};
 `;
-
-
 const outputPath = path.join(__dirname, 'src', 'config.js');
 fs.writeFileSync(outputPath, configContent);
+
+// Generate .htaccess from template
+const htaccessTemplatePath = path.join(__dirname, '.htaccess.template');
+const htaccessOutPath = path.join(__dirname, '.htaccess');
+
+let errorDocPath = subDir ? `/${subDir}/index.html` : '/index.html';
+let rewriteBase = subDir ? `/${subDir}/` : '/';
+let htaccessContent = fs.readFileSync(htaccessTemplatePath, 'utf8')
+    .replace('__ERROR_DOC_PATH__', errorDocPath)
+    .replace('__REWRITE_BASE__', rewriteBase);
+fs.writeFileSync(htaccessOutPath, htaccessContent);
 
 console.log('✅ Frontend config generated:', outputPath);
 console.log('   API_BASE_PATH:', frontendConfig.API_BASE_PATH);
 console.log('   BASE_URL:', frontendConfig.BASE_URL);
+console.log('✅ .htaccess generated:', htaccessOutPath);
+console.log('   ErrorDocument 404', errorDocPath);

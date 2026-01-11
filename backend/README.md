@@ -8,14 +8,10 @@ This backend provides a REST API for managing items, using Python Flask and SQLi
 
 - **app.py**: Main Flask application. Sets up the app, logging, error handling, database helpers, and registers all endpoints (via Blueprints).
 - **api.cgi**: CGI entry point for running the Flask app under CGI. Handles environment setup and error logging for CGI deployments.
-- **run.cgi**: Alternate CGI entry point, functionally similar to api.cgi, for testing provider filename sensitivity.
 - **config_helper.py**: Utility for reading deployment configuration from config.json and determining backend paths.
 - **init_db.py**: Script to initialize the SQLite database and create sample data.
 - **logging_helper.py**: Helper for logging exceptions from CGI scripts to backend/logs/cgi_error.log.
 - **requirements.txt**: Python dependencies for the backend (Flask, Flask-CORS, etc).
-- **test-cgi.sh**: Bash script to test CGI endpoints locally.
-- **test.py**: Minimal Python script for CGI testing (prints hello message).
-- **test.cgi**: Minimal CGI script for server testing (prints hello message).
 - **endpoints/**: Directory containing modularized Flask Blueprints for each API endpoint.
     - **items.py**: Blueprint for all /items endpoints (CRUD for items).
 - **database/**: Contains the SQLite database file (app.db).

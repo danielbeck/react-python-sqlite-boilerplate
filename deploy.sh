@@ -10,36 +10,39 @@ if [ ! -f "config.json" ]; then
     exit 1
 fi
 
-read -r HOST USER BASE_DIR SUB_DIR BACKEND_ROOT DOMAIN <<EOF
-$(python3 - <<PY
+eval $(python3 - <<PY
 import json
 cfg = json.load(open('config.json'))
-deployment = cfg.get('deployment', {})
-production = cfg.get('production', {})
-host = deployment.get('host', '')
-user = deployment.get('user', '')
-base = deployment.get('baseDir', '')
-sub = deployment.get('subDir', '')
-backend_root = deployment.get('backendRoot', '')
-# Normalize: ensure base ends with a single '/'
-if base and not base.endswith('/'):
-    base = base + '/'
-if base == '/':
-    base = ''
-# Normalize sub: remove any leading/trailing slashes, then append a trailing slash if non-empty
-sub = sub.strip('/')
+d = cfg.get('deployment', {})
+p = cfg.get('production', {})
+def normslash(s):
+    if s and not s.endswith('/'):
+        s = s + '/'
+    if s == '/':
+        s = ''
+    return s
+base = normslash(d.get('baseDir', ''))
+sub = d.get('subDir', '').strip('/')
 if sub:
     sub = sub + '/'
-# Normalize backend_root to end with '/'
-if backend_root and not backend_root.endswith('/'):
-    backend_root = backend_root + '/'
-print(host, user, base, sub, backend_root, production.get('domain', ''))
+else:
+    sub = ''
+backend_root = normslash(d.get('backendRoot', ''))
+print(f"HOST='{d.get('host','')}'")
+print(f"USER='{d.get('user','')}'")
+print(f"BASE_DIR='{base}'")
+print(f"SUB_DIR='{sub}'")
+print(f"BACKEND_ROOT='{backend_root}'")
+print(f"DOMAIN='{p.get('domain','')}'")
 PY
 )
-EOF
 
-# Construct full remote directory path
+# Construct full remote directory path (never use DOMAIN for remote paths)
 REMOTE_DIR="${BASE_DIR}${SUB_DIR}"
+if [ -z "$SUB_DIR" ]; then
+    REMOTE_DIR="$BASE_DIR"
+fi
+echo "[DEBUG] REMOTE_DIR: $REMOTE_DIR"
 
 CONTROL_PATH="$HOME/.ssh/deploy-control-$$"
 
@@ -77,6 +80,15 @@ trap cleanup EXIT
 
 echo "📦 Deploying backend to ${REMOTE_DIR}backend/..."
 echo "🗂️  Ensuring remote directories exist..."
+
+# Parse --force-fresh flag
+FORCE_FRESH=0
+for arg in "$@"; do
+    if [ "$arg" = "--force-fresh" ]; then
+        FORCE_FRESH=1
+    fi
+done
+
 # Check if backend directory exists before creating (to detect first-time deploy)
 BACKEND_EXISTS=$(ssh -o ControlPath="$CONTROL_PATH" $USER@$HOST "if [ -d '${REMOTE_DIR}backend' ]; then echo 1; else echo 0; fi")
 ssh -o ControlPath="$CONTROL_PATH" $USER@$HOST "mkdir -p ${REMOTE_DIR}backend ${REMOTE_DIR}frontend"
@@ -85,9 +97,15 @@ echo "✅ Remote directories ensured."
 # Build and normalize backend dir by collapsing duplicate slashes
 BACKEND_DIR="${BACKEND_ROOT}${BASE_DIR}${SUB_DIR}backend"
 BACKEND_DIR=$(echo "${BACKEND_DIR}" | sed -E 's:/+:/:g')
+if [ -z "$SUB_DIR" ]; then
+    BACKEND_DIR="${BACKEND_ROOT}${BASE_DIR}backend"
+    BACKEND_DIR=$(echo "${BACKEND_DIR}" | sed -E 's:/+:/:g')
+fi
+echo "[DEBUG] BACKEND_DIR: $BACKEND_DIR"
 
-# Rsync backend excluding api.cgi, then push a templated api.cgi with the correct backend path
-rsync -avz --progress \
+
+# Rsync backend with --delete to remove unwanted files
+rsync -avz --delete --progress \
     -e "ssh -o ControlPath=$CONTROL_PATH" \
     --exclude='api.cgi' \
     --exclude='__pycache__/' \
@@ -118,9 +136,16 @@ echo "✅ Remote permissions hardened."
 
 
 # If backend did not exist before, run pip install and init_db.py
-if [ "$BACKEND_EXISTS" = "0" ]; then
-    echo "🛠️  First-time backend setup: installing dependencies and initializing database..."
-    ssh -o ControlPath="$CONTROL_PATH" $USER@$HOST "cd ${REMOTE_DIR}backend && if [ -f requirements.txt ]; then pip3 install --user -r requirements.txt || pip3 install --user Flask Flask-CORS; else pip3 install --user Flask Flask-CORS; fi && if [ -f init_db.py ]; then python3 init_db.py; fi"
+
+# Always ensure backend venv exists and dependencies are installed
+echo "🐍 Setting up Python virtual environment and installing backend dependencies..."
+ssh -o ControlPath="$CONTROL_PATH" $USER@$HOST "cd ${REMOTE_DIR}backend && if [ ! -d venv ]; then python3 -m venv venv; fi && source venv/bin/activate && pip install --upgrade pip && if [ -f requirements.txt ]; then pip install -r requirements.txt || pip install Flask Flask-CORS; else pip install Flask Flask-CORS; fi"
+echo "✅ Python virtual environment and dependencies ready."
+
+# If backend did not exist before, or --force-fresh is set, initialize the database using the venv's python
+if [ "$BACKEND_EXISTS" = "0" ] || [ "$FORCE_FRESH" = "1" ]; then
+    echo "🛠️  Backend setup: initializing database (fresh deploy or --force-fresh)..."
+    ssh -o ControlPath="$CONTROL_PATH" $USER@$HOST "cd ${REMOTE_DIR}backend && source venv/bin/activate && if [ -f init_db.py ]; then venv/bin/python init_db.py; fi"
     echo "✅ Backend initialized."
 fi
 
@@ -170,12 +195,18 @@ fi
 echo "🏗 Building frontend..."
 if (cd frontend && npm run build); then
     echo "✅ Frontend built. Deploying dist to $REMOTE_DIR"
-    rsync -avz --progress \
+     rsync -avz --progress \
         -e "ssh -o ControlPath=$CONTROL_PATH" \
         frontend/dist/ $USER@$HOST:$REMOTE_DIR/
     echo "✅ Frontend deployed to $REMOTE_DIR"
 else
     echo "⚠️  Frontend build failed — skipping dist deploy"
+fi
+
+# Ensure .htaccess for SPA routing is deployed with the built frontend
+if [ -f frontend/.htaccess ]; then
+    scp -o ControlPath="$CONTROL_PATH" frontend/.htaccess $USER@$HOST:${REMOTE_DIR}.htaccess
+    echo "✅ .htaccess for SPA routing deployed to $REMOTE_DIR.htaccess"
 fi
 
 echo ""

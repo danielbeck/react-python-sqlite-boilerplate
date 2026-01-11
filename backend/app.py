@@ -8,7 +8,8 @@ import traceback
 from collections import deque
 
 app = Flask(__name__)
-CORS(app)
+# Allow credentials and only allow frontend dev origin
+CORS(app, supports_credentials=True, origins=["http://localhost:3000"])
 
 # Setup file logging for unexpected exceptions (helps when running under CGI/Apache)
 log_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs', 'flask_error.log')
@@ -39,6 +40,14 @@ def _trim_log(path, max_lines=10000):
 BASE_DIR = os.environ.get('APP_BASE_DIR') or os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE_DIR, 'database', 'app.db')
 
+# Debug: log APP_BASE_DIR and DB_PATH to flask_error.log
+try:
+    with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs', 'flask_error.log'), 'a') as f:
+        f.write(f"[DEBUG] APP_BASE_DIR: {BASE_DIR}\n")
+        f.write(f"[DEBUG] DB_PATH: {DB_PATH}\n")
+except Exception:
+    pass
+
 def get_db():
     """Get database connection"""
     conn = sqlite3.connect(DB_PATH)
@@ -62,17 +71,23 @@ def index():
 
 # Register Blueprints for endpoints
 
+
 try:
     # If run as module (python3 -m backend.app)
     from backend.endpoints.items import bp as items_bp
+    from backend.endpoints.auth import bp as auth_bp
 except ImportError:
     # If run as script (python3 app.py)
     from endpoints.items import bp as items_bp
+    from endpoints.auth import bp as auth_bp
 
 # Provide DB helpers to Blueprints via app config
+
 app.config['get_db'] = get_db
 app.config['dict_from_row'] = dict_from_row
+app.secret_key = os.environ.get('SECRET_KEY', 'dev_secret')
 app.register_blueprint(items_bp)
+app.register_blueprint(auth_bp)
 
 
 @app.errorhandler(Exception)
