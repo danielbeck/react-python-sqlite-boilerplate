@@ -1,4 +1,4 @@
-from flask import Blueprint, jsonify, request, current_app
+from flask import Blueprint, jsonify, request, current_app, session
 
 bp = Blueprint('items', __name__, url_prefix='/items')
 
@@ -11,22 +11,28 @@ def dict_from_row(row):
 
 @bp.route('/', methods=['GET'])
 def get_items():
+    user_id = session.get('user_id')
+    if not user_id:
+        return jsonify({'error': 'Not authenticated'}), 401
     conn = get_db()
-    items = conn.execute('SELECT * FROM items ORDER BY id').fetchall()
+    items = conn.execute('SELECT * FROM items WHERE user_id = ? ORDER BY id', (user_id,)).fetchall()
     conn.close()
     return jsonify({'items': [dict_from_row(i) for i in items]})
 
 @bp.route('/', methods=['POST'])
 def create_item():
+    user_id = session.get('user_id')
+    if not user_id:
+        return jsonify({'error': 'Not authenticated'}), 401
     data = request.json
     if not data or 'name' not in data:
         return jsonify({'error': 'Name is required'}), 400
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute('''
-        INSERT INTO items (name, description)
-        VALUES (?, ?)
-    ''', (data['name'], data.get('description', '')))
+        INSERT INTO items (user_id, name, description)
+        VALUES (?, ?, ?)
+    ''', (user_id, data['name'], data.get('description', '')))
     item_id = cursor.lastrowid
     conn.commit()
     conn.close()
@@ -34,8 +40,11 @@ def create_item():
 
 @bp.route('/<int:item_id>', methods=['GET'])
 def get_item(item_id):
+    user_id = session.get('user_id')
+    if not user_id:
+        return jsonify({'error': 'Not authenticated'}), 401
     conn = get_db()
-    item = conn.execute('SELECT * FROM items WHERE id = ?', (item_id,)).fetchone()
+    item = conn.execute('SELECT * FROM items WHERE id = ? AND user_id = ?', (item_id, user_id)).fetchone()
     conn.close()
     if item:
         return jsonify({'item': dict_from_row(item)})
@@ -43,6 +52,9 @@ def get_item(item_id):
 
 @bp.route('/<int:item_id>', methods=['PUT'])
 def update_item(item_id):
+    user_id = session.get('user_id')
+    if not user_id:
+        return jsonify({'error': 'Not authenticated'}), 401
     data = request.json
     if not data:
         return jsonify({'error': 'No data provided'}), 400
@@ -61,16 +73,20 @@ def update_item(item_id):
         return jsonify({'error': 'No fields to update'}), 400
     fields.append('updated_at = CURRENT_TIMESTAMP')
     values.append(item_id)
-    cursor.execute(f"UPDATE items SET {', '.join(fields)} WHERE id = ?", values)
+    # Only update if item belongs to user
+    cursor.execute(f"UPDATE items SET {', '.join(fields)} WHERE id = ? AND user_id = ?", values + [user_id])
     conn.commit()
     conn.close()
     return jsonify({'message': 'Item updated'})
 
 @bp.route('/<int:item_id>', methods=['DELETE'])
 def delete_item(item_id):
+    user_id = session.get('user_id')
+    if not user_id:
+        return jsonify({'error': 'Not authenticated'}), 401
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute('DELETE FROM items WHERE id = ?', (item_id,))
+    cursor.execute('DELETE FROM items WHERE id = ? AND user_id = ?', (item_id, user_id))
     conn.commit()
     conn.close()
     return jsonify({'message': 'Item deleted'})

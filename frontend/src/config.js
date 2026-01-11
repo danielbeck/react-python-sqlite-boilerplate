@@ -2,6 +2,6 @@
 // Run 'npm run generate-config' to regenerate
 
 export const config = {
-  "API_BASE_PATH": "/test/api",
+  "API_BASE_PATH": "/test/backend/api.cgi",
   "BASE_URL": "/test/"
 };

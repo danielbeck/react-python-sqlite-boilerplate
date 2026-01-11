@@ -52,7 +52,6 @@ echo ""
 
 # Establish persistent SSH connection
 echo "📡 Establishing SSH connection..."
-echo "   (You'll only need to enter your password once)"
 
 ssh -o ControlMaster=auto \
     -o ControlPath="$CONTROL_PATH" \
@@ -144,7 +143,8 @@ echo "✅ Python virtual environment and dependencies ready."
 
 # If backend did not exist before, or --force-fresh is set, initialize the database using the venv's python
 if [ "$BACKEND_EXISTS" = "0" ] || [ "$FORCE_FRESH" = "1" ]; then
-    echo "🛠️  Backend setup: initializing database (fresh deploy or --force-fresh)..."
+    echo "🛠️  Backend setup: removing old database and initializing database (fresh deploy or --force-fresh)..."
+    ssh -o ControlPath="$CONTROL_PATH" $USER@$HOST "cd ${REMOTE_DIR}backend && rm -f database/app.db"
     ssh -o ControlPath="$CONTROL_PATH" $USER@$HOST "cd ${REMOTE_DIR}backend && source venv/bin/activate && if [ -f init_db.py ]; then venv/bin/python init_db.py; fi"
     echo "✅ Backend initialized."
 fi
