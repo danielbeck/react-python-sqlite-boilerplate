@@ -1,0 +1,13 @@
+{
+    "deployment": {
+        "host": "home557350892.1and1-data.host",
+        "user": "u79456718",
+        "baseDir": "nb/",
+        "subDir": "testing/",
+        "backendRoot": "/kunden/homepages/29/d557350892/htdocs/"
+    },
+    "production": {
+        "domain": "http://nosebeep.com",
+        "comment": "The production domain where the app is hosted"
+    }
+}
