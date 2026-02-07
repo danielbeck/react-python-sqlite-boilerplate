@@ -85,7 +85,25 @@ except ImportError:
 
 app.config['get_db'] = get_db
 app.config['dict_from_row'] = dict_from_row
-app.secret_key = os.environ.get('SECRET_KEY', 'dev_secret')
+
+# Security: Require SECRET_KEY in production
+SECRET_KEY = os.environ.get('SECRET_KEY')
+if not SECRET_KEY:
+    if os.environ.get('FLASK_ENV') == 'production':
+        raise ValueError(
+            "SECRET_KEY environment variable must be set in production. "
+            "Generate one with: python3 -c 'import secrets; print(secrets.token_hex(32))'"
+        )
+    else:
+        # Only use fallback in development
+        import warnings
+        warnings.warn(
+            "Using insecure default SECRET_KEY. Set SECRET_KEY environment variable for production.",
+            UserWarning
+        )
+        SECRET_KEY = 'dev_secret_DO_NOT_USE_IN_PRODUCTION'
+
+app.secret_key = SECRET_KEY
 app.register_blueprint(items_bp)
 app.register_blueprint(auth_bp)
 
