@@ -1,24 +1,29 @@
 #!/usr/bin/env node
 /**
- * Generate frontend config from root config.json
+ * Generate frontend config from .env file
  * This should be run before building the frontend
  */
 
-
 import fs from 'fs';
 import path from 'path';
+import { config } from 'dotenv';
 
-// Read root config.json
-
+// Load .env file
 const __dirname = path.dirname(new URL(import.meta.url).pathname);
-const rootConfigPath = path.join(__dirname, '..', 'config.json');
-const config = JSON.parse(fs.readFileSync(rootConfigPath, 'utf8'));
+const envPath = path.join(__dirname, '..', '.env');
+
+// Check if .env exists, otherwise try .env.example as fallback for local dev
+if (fs.existsSync(envPath)) {
+    config({ path: envPath });
+} else {
+    console.warn('⚠️  .env not found, using defaults for development');
+}
 
 // Extract relevant frontend config
-let subDir = config.deployment.subDir || '';
+let subDir = process.env.DEPLOY_SUB_DIR || '';
 // normalize: remove any leading/trailing slashes so we can assemble paths predictably
 subDir = subDir.replace(/^\/+|\/+$/g, '');
-const domain = config.production.domain;
+const domain = process.env.PRODUCTION_DOMAIN || 'http://localhost:3000';
 
 // Determine environment: development (local) or production (cgi)
 const isDev = process.env.NODE_ENV === 'development';
@@ -42,7 +47,7 @@ const frontendConfig = {
 
 
 // Write to frontend/src/config.js
-const configContent = `// Auto-generated from config.json - DO NOT EDIT MANUALLY
+const configContent = `// Auto-generated from .env - DO NOT EDIT MANUALLY
 // Run 'npm run generate-config' to regenerate
 
 export const config = ${JSON.stringify(frontendConfig, null, 2)};

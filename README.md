@@ -4,13 +4,13 @@ A small React frontend paired with a Python/Flask backend (SQLite) — configure
 
 THe backend currently contains a demo "Todo List" app, as is traditional.
 
-Modify config.json to deploy to different subdirectories or domains
+Modify .env to deploy to different subdirectories or domains (see .env.example)
 
 ## Quick links
 - Backend: backend/app.py
 - DB schema + sample data: backend/init_db.py
 - Deploy script: deploy.sh
-- Config: config.json
+- Config: .env (template: .env.example)
 
 ## Run locally
 
@@ -59,7 +59,15 @@ python3 backend/init_db.py
 
 ## Deployment
 
-The deployment process is managed by the `deploy.sh` script, which uses `config.json` for all environment and path settings.
+The deployment process is managed by the `deploy.sh` script, which uses `.env` for all environment and path settings.
+
+### Setup
+
+Before deploying, create a `.env` file based on `.env.example`:
+```bash
+cp .env.example .env
+# Edit .env with your deployment settings
+```
 
 ### Standard Deploy
 

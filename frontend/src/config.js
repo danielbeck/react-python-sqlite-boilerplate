@@ -1,4 +1,4 @@
-// Auto-generated from config.json - DO NOT EDIT MANUALLY
+// Auto-generated from .env - DO NOT EDIT MANUALLY
 // Run 'npm run generate-config' to regenerate
 
 export const config = {

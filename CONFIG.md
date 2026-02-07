@@ -1,53 +1,60 @@
 # Configuration Guide
 
-This boilerplate uses `config.json` to manage deployment settings, allowing you to deploy multiple apps to the same server with different subdirectories.
+This boilerplate uses `.env` file to manage deployment settings, allowing you to deploy multiple apps to the same server with different subdirectories.
 
 ## Configuration File
 
-The `config.json` file in the root directory controls:
+The `.env` file in the root directory controls:
 - Deployment server and credentials
 - Base directory and subdirectory paths
 - Production domain
- - `backendRoot` (optional): absolute server document-root prefix used to build the deployed backend path
+- Flask secret key and other environment variables
+
+### Setup
+
+Copy the example file to create your configuration:
+```bash
+cp .env.example .env
+```
+
+Then edit `.env` with your settings.
 
 ### Default Configuration
 
-```json
-{
-  "deployment": {
-    "host": "home557350892.1and1-data.host",
-    "user": "u79456718",
-    "baseDir": "nb/",
-    "subDir": "",
-    "backendRoot": "/kunden/homepages/29/d557350892/htdocs/"
-  },
-  "production": {
-    "domain": "https://nosebeep.com"
-  }
-}
+```env
+# Flask Configuration
+SECRET_KEY=your-secret-key-here
+
+# Deployment Configuration
+DEPLOY_HOST=your.host.com
+DEPLOY_USER=your_username
+DEPLOY_BASE_DIR=nb/
+DEPLOY_SUB_DIR=
+DEPLOY_BACKEND_ROOT=/kunden/homepages/29/d557350892/htdocs/
+PRODUCTION_DOMAIN=https://yourdomain.com
 ```
 
 ### Configuration Options
 
-#### deployment.host
+#### DEPLOY_HOST
 The server hostname for SSH/rsync deployment.
 
-#### deployment.user
+#### DEPLOY_USER
 The SSH username for server access.
 
-#### deployment.baseDir
+#### DEPLOY_BASE_DIR
 The base directory on your server where apps are deployed (e.g., `nb/`).
 - Must end with `/`
 - This is the root directory that contains all your apps
 
-#### deployment.subDir (optional)
+#### DEPLOY_SUB_DIR (optional)
 A subdirectory within baseDir for this specific app.
-- Leave empty (`""`) or omit to deploy directly to baseDir
-- Add a subdirectory (e.g., `"myapp/"`) to deploy to `baseDir/subDir`
+- Leave empty to deploy directly to baseDir
+- Add a subdirectory (e.g., `myapp/`) to deploy to `baseDir/subDir`
 - Must end with `/` if specified
 
-#### production.domain
-The full production domain URL (e.g., `https://nosebeep.com`).
+#### PRODUCTION_DOMAIN
+The full production domain URL (e.g., `https://yourdomain.com`).
 
 ## Deployment Scenarios
 

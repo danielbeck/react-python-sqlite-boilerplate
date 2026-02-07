@@ -26,3 +26,6 @@ frontend/dist/
 # Environment/config files
 .env
 .env.local
+
+# Sensitive configuration (use config.json.example as template)
+config.json

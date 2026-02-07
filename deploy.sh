@@ -1,39 +1,44 @@
 #!/bin/bash
 
 # Deployment script - Deploys to configured directory
-# Configuration is read from config.json
+# Configuration is read from .env file
 
-# Read configuration from config.json (use Python to parse and normalize)
-if [ ! -f "config.json" ]; then
-    echo "❌ config.json not found!"
-    echo "Please create config.json with deployment settings"
+# Read configuration from .env file
+if [ ! -f ".env" ]; then
+    echo "❌ .env not found!"
+    echo "Please create .env with deployment settings (see .env.example)"
     exit 1
 fi
 
+# Source .env file and export variables
+set -a
+source .env
+set +a
+
+# Normalize paths using Python
 eval $(python3 - <<PY
-import json
-cfg = json.load(open('config.json'))
-d = cfg.get('deployment', {})
-p = cfg.get('production', {})
+import os
 def normslash(s):
     if s and not s.endswith('/'):
         s = s + '/'
     if s == '/':
         s = ''
     return s
-base = normslash(d.get('baseDir', ''))
-sub = d.get('subDir', '').strip('/')
+
+base = normslash(os.environ.get('DEPLOY_BASE_DIR', ''))
+sub = os.environ.get('DEPLOY_SUB_DIR', '').strip('/')
 if sub:
     sub = sub + '/'
 else:
     sub = ''
-backend_root = normslash(d.get('backendRoot', ''))
-print(f"HOST='{d.get('host','')}'")
-print(f"USER='{d.get('user','')}'")
+backend_root = normslash(os.environ.get('DEPLOY_BACKEND_ROOT', ''))
+
+print(f"HOST='{os.environ.get('DEPLOY_HOST','')}'")
+print(f"USER='{os.environ.get('DEPLOY_USER','')}'")
 print(f"BASE_DIR='{base}'")
 print(f"SUB_DIR='{sub}'")
 print(f"BACKEND_ROOT='{backend_root}'")
-print(f"DOMAIN='{p.get('domain','')}'")
+print(f"DOMAIN='{os.environ.get('PRODUCTION_DOMAIN','')}'")
 PY
 )
 
@@ -183,7 +188,7 @@ rsync -avz --progress \
 echo ""
 echo "\n🏗️  Deploying built frontend to $REMOTE_DIR (web root)..."
 echo "🔁 Generating frontend config and building frontend locally (to populate frontend/dist)"
-# Generate config for frontend (ensures BASE_URL matches config.json)
+# Generate config for frontend (ensures BASE_URL matches .env)
 node frontend/generate-config.js
 
 # Install frontend deps if missing (fast path)
@@ -213,7 +218,7 @@ echo ""
 echo "✅ Deployment complete!"
 echo ""
 echo "All files deployed to: $REMOTE_DIR"
-DOMAIN=$(grep -o '"domain": *"[^"]*"' config.json | cut -d'"' -f4)
+# DOMAIN is already set from .env
 # Ensure we print HTTP URLs for the CGI endpoints (convert https -> http if present)
 DOMAIN_HTTP="${DOMAIN/#https:\/\//http://}"
 if [ -z "$SUB_DIR" ]; then
