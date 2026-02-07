@@ -34,7 +34,7 @@ function App() {
   const fetchItems = async () => {
     try {
       setLoading(true)
-      const data = await fetchAPI('/items', { credentials: 'include' })
+      const data = await fetchAPI('/items/', { credentials: 'include' })
       setItems(data.items || [])
       setError(null)
     } catch (err) {
@@ -50,7 +50,7 @@ function App() {
     if (!newItemName.trim()) return
 
     try {
-      await fetchAPI('/items', {
+      await fetchAPI('/items/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',

@@ -8,8 +8,15 @@ import traceback
 from collections import deque
 
 app = Flask(__name__)
-# Allow credentials and only allow frontend dev origin
-CORS(app, supports_credentials=True, origins=["http://localhost:3000"])
+# Allow credentials and allow frontend dev origins (ports 3000-3010 for flexibility)
+CORS(app, supports_credentials=True, origins=[
+    "http://localhost:3000",
+    "http://localhost:3001",
+    "http://localhost:3002",
+    "http://localhost:3003",
+    "http://localhost:3004",
+    "http://localhost:3005"
+])
 
 # Setup file logging for unexpected exceptions (helps when running under CGI/Apache)
 log_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs', 'flask_error.log')
