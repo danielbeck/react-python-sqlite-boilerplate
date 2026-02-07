@@ -1,22 +1,41 @@
 from flask import Flask, jsonify, request, make_response
 from flask_cors import CORS
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+from flask_wtf.csrf import CSRFProtect
 import sqlite3
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
 import traceback
 from collections import deque
 
 app = Flask(__name__)
-# Allow credentials and allow frontend dev origins (ports 3000-3010 for flexibility)
-CORS(app, supports_credentials=True, origins=[
+
+# CORS Configuration - read from environment or use dev defaults
+ALLOWED_ORIGINS = os.environ.get('ALLOWED_ORIGINS', '').split(',') if os.environ.get('ALLOWED_ORIGINS') else [
     "http://localhost:3000",
     "http://localhost:3001",
     "http://localhost:3002",
     "http://localhost:3003",
     "http://localhost:3004",
     "http://localhost:3005"
-])
+]
+# Filter out empty strings
+ALLOWED_ORIGINS = [origin.strip() for origin in ALLOWED_ORIGINS if origin.strip()]
+
+CORS(app, supports_credentials=True, origins=ALLOWED_ORIGINS)
+
+# Initialize rate limiter
+limiter = Limiter(
+    app=app,
+    key_func=get_remote_address,
+    default_limits=["200 per day", "50 per hour"],
+    storage_uri="memory://"
+)
+
+# Initialize CSRF protection
+csrf = CSRFProtect(app)
 
 # Setup file logging for unexpected exceptions (helps when running under CGI/Apache)
 log_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs', 'flask_error.log')
@@ -111,23 +130,144 @@ if not SECRET_KEY:
         SECRET_KEY = 'dev_secret_DO_NOT_USE_IN_PRODUCTION'
 
 app.secret_key = SECRET_KEY
+
+# Secure session configuration
+app.config['SESSION_COOKIE_SECURE'] = os.environ.get('FLASK_ENV') == 'production'  # HTTPS only in production
+app.config['SESSION_COOKIE_HTTPONLY'] = True  # Prevent JavaScript access
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # CSRF protection
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)  # Session timeout
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024  # 16KB max request size
+
+# WTF CSRF configuration
+app.config['WTF_CSRF_TIME_LIMIT'] = None  # CSRF tokens don't expire (session-based)
+app.config['WTF_CSRF_CHECK_DEFAULT'] = False  # We'll manually protect endpoints
+
 app.register_blueprint(items_bp)
 app.register_blueprint(auth_bp)
 
 
-@app.errorhandler(Exception)
-def handle_exception(e):
-    # Log full traceback to flask_error.log for postmortem
+@app.after_request
+def set_security_headers(response):
+    """Add security headers to all responses"""
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'DENY'
+    response.headers['X-XSS-Protection'] = '1; mode=block'
+    response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+    # CSP for API - very restrictive
+    response.headers['Content-Security-Policy'] = "default-src 'none'; frame-ancestors 'none'"
+    return response
+
+
+# ============ ERROR HANDLERS ============
+
+@app.errorhandler(400)
+def bad_request(e):
+    """Handle bad request errors"""
+    app.logger.warning(f'Bad request: {request.url} - {str(e)}')
+    return jsonify({
+        'error': 'Bad Request',
+        'message': 'The request could not be understood or was missing required parameters.'
+    }), 400
+
+@app.errorhandler(401)
+def unauthorized(e):
+    """Handle unauthorized access"""
+    app.logger.warning(f'Unauthorized access attempt: {request.url} - IP: {request.remote_addr}')
+    return jsonify({
+        'error': 'Unauthorized',
+        'message': 'Authentication is required to access this resource.'
+    }), 401
+
+@app.errorhandler(403)
+def forbidden(e):
+    """Handle forbidden access"""
+    app.logger.warning(f'Forbidden access attempt: {request.url} - IP: {request.remote_addr}')
+    return jsonify({
+        'error': 'Forbidden',
+        'message': 'You do not have permission to access this resource.'
+    }), 403
+
+@app.errorhandler(404)
+def not_found(e):
+    """Handle not found errors"""
+    return jsonify({
+        'error': 'Not Found',
+        'message': 'The requested resource was not found.'
+    }), 404
+
+@app.errorhandler(405)
+def method_not_allowed(e):
+    """Handle method not allowed errors"""
+    return jsonify({
+        'error': 'Method Not Allowed',
+        'message': f'The {request.method} method is not allowed for this endpoint.'
+    }), 405
+
+@app.errorhandler(413)
+def request_entity_too_large(e):
+    """Handle request too large errors"""
+    app.logger.warning(f'Request too large: {request.url} - IP: {request.remote_addr}')
+    return jsonify({
+        'error': 'Request Too Large',
+        'message': f'Request exceeds maximum allowed size of {app.config["MAX_CONTENT_LENGTH"]} bytes.'
+    }), 413
+
+@app.errorhandler(429)
+def rate_limit_exceeded(e):
+    """Handle rate limit errors"""
+    app.logger.warning(f'Rate limit exceeded: {request.url} - IP: {request.remote_addr}')
+    return jsonify({
+        'error': 'Too Many Requests',
+        'message': 'Rate limit exceeded. Please try again later.'
+    }), 429
+
+@app.errorhandler(500)
+def internal_server_error(e):
+    """Handle internal server errors"""
     try:
         tb = traceback.format_exc()
-        app.logger.error('Unhandled exception: %s\n%s', e, tb)
-    except Exception:
-        pass
-    try:
+        app.logger.error(f'Internal server error: {request.url}\n{tb}')
         _trim_log(log_path, max_lines=10000)
     except Exception:
         pass
-    return jsonify({'error': 'Internal Server Error'}), 500
+    
+    # Don't expose internal error details in production
+    if os.environ.get('FLASK_ENV') == 'production':
+        return jsonify({
+            'error': 'Internal Server Error',
+            'message': 'An unexpected error occurred. Please try again later.'
+        }), 500
+    else:
+        # In development, provide more details
+        return jsonify({
+            'error': 'Internal Server Error',
+            'message': str(e),
+            'type': type(e).__name__
+        }), 500
+
+@app.errorhandler(Exception)
+def handle_exception(e):
+    """Handle all uncaught exceptions"""
+    try:
+        tb = traceback.format_exc()
+        app.logger.error(f'Unhandled exception: {request.url}\n{tb}')
+        _trim_log(log_path, max_lines=10000)
+    except Exception:
+        pass
+    
+    # Don't expose internal error details in production
+    if os.environ.get('FLASK_ENV') == 'production':
+        return jsonify({
+            'error': 'Internal Server Error',
+            'message': 'An unexpected error occurred. Please try again later.'
+        }), 500
+    else:
+        # In development, provide more details for debugging
+        return jsonify({
+            'error': 'Internal Server Error',
+            'message': str(e),
+            'type': type(e).__name__
+        }), 500
 
 
 if __name__ == '__main__':
