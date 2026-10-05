@@ -14,6 +14,10 @@ Modify .env to deploy to different subdirectories or domains (see .env.example)
 
 ## Run locally
 
+Create your project `.env` from `.env.example` and set a random `SECRET_KEY`
+before starting the backend. Local Flask startup loads this key automatically;
+the development fallback key has been removed.
+
 Backend (development)
 
 ```bash
@@ -48,6 +52,16 @@ Dev frontend runs on http://localhost:3000 and proxies API requests to the backe
 
 See `backend/app.py` for authoritative endpoint behavior.
 
+## Account pages
+
+The header profile icon links to `/auth` for guests and `/profile` for logged-in
+users. Login/register tabs share responsive card styling, labeled fields,
+keyboard navigation, submission states, and API error messages. The profile
+page displays the username and a styled Log out button. Logout failures retain
+the account and show an error; successful logout clears displayed todos and
+returns home. Direct profile visits wait for authentication before redirecting
+guests. The todo list and its item endpoints remain unchanged.
+
 ## Database
 
 SQLite DB: `backend/database/app.db`.
@@ -75,6 +89,8 @@ cp .env.example .env
 ./deploy.sh
 ```
 - Syncs backend and frontend code to the configured remote directory.
+- Copies only the session key to private server configuration outside the web
+  root, without printing it. No `.env` upload is needed; see `backend/README.md`.
 - Installs backend Python dependencies in a virtual environment (if not already present).
 - Initializes the backend database **only if** this is the first deploy (i.e., the backend directory did not previously exist).
 - Does **not** overwrite an existing database or sample data on redeploys.
@@ -86,7 +102,8 @@ cp .env.example .env
 ```
 - Performs all steps of a standard deploy.
 - **Always** (re)initializes the backend database by running `init_db.py` on the server, even if the backend directory already exists.
-- This will recreate tables if missing and insert sample data if the items table is empty. Existing data is preserved unless the schema is missing.
+- This deletes the existing database before initialization. All accounts and
+  todos are lost; do not use this flag for routine redeploys.
 
 **Note:**
 - The deploy script uses SSH and rsync. You must have SSH access to the configured host.
@@ -94,4 +111,3 @@ cp .env.example .env
 - The frontend is built locally and deployed to the correct subdirectory as configured.
 
 See `deploy.sh` for full details and customization options.
-

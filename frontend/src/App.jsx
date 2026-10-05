@@ -1,10 +1,11 @@
 
 import { useState, useEffect } from 'react'
-import { Link, Routes, Route, useNavigate } from 'react-router-dom'
+import { Link, Navigate, Routes, Route, useLocation, useNavigate } from 'react-router-dom'
 import { fetchAPI } from './api'
 import ItemList from './components/ItemList'
 import ItemForm from './components/ItemForm'
 import AuthPage from './components/AuthPage'
+import ProfilePage from './components/ProfilePage'
 import './global.scss'
 
 
@@ -15,7 +16,9 @@ function App() {
   const [newItemName, setNewItemName] = useState('')
   const [newItemDesc, setNewItemDesc] = useState('')
   const [user, setUser] = useState(null)
+  const [userLoading, setUserLoading] = useState(true)
   const navigate = useNavigate();
+  const location = useLocation()
 
   useEffect(() => {
     fetchCurrentUser()
@@ -28,6 +31,8 @@ function App() {
       if (data.user) fetchItems()
     } catch (err) {
       setUser(null)
+    } finally {
+      setUserLoading(false)
     }
   }
 
@@ -92,19 +97,27 @@ function App() {
     <div className="App">
       <header className="App-header">
         <h1>React + Python Boilerplate</h1>
-        {user && <span style={{ marginRight: 16 }}>Logged in as <b>{user}</b></span>}
-        {user ? (
-          <button onClick={handleLogout}>Logout</button>
-        ) : (
-          <Link to="/auth" style={{ fontWeight: 'bold', color: '#007bff', marginLeft: 16 }}>Go to Auth Page</Link>
+        {(user || location.pathname.replace(/\/+$/, '') !== '/auth') && (
+          <Link className="auth-link" to={user ? '/profile' : '/auth'}
+            aria-label={user ? 'Your profile' : 'Log in or register'}
+            title={user ? 'Your profile' : 'Log in or register'}>
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+              <circle cx="12" cy="8" r="4" />
+              <path d="M4 21v-1a8 8 0 0 1 16 0v1" />
+            </svg>
+          </Link>
         )}
-        {loading && <p>Loading...</p>}
-        {error && <p style={{ color: 'red' }}>{error}</p>}
+        {location.pathname === '/' && user && loading && <p role="status">Loading...</p>}
+        {location.pathname === '/' && error && <p style={{ color: 'red' }} role="alert">{error}</p>}
       </header>
 
       <main>
         <Routes>
           <Route path="/auth" element={<AuthPage onAuth={handleAuth} />} />
+          <Route path="/profile" element={userLoading
+            ? <section className="auth-page"><p role="status">Loading your profile...</p></section>
+            : user ? <ProfilePage user={user} onLogout={handleLogout} />
+              : <Navigate to="/auth" replace />} />
           <Route path="/" element={user ? (
             <>
               <ItemForm

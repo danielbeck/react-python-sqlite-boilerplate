@@ -7,13 +7,16 @@ This backend provides a REST API for managing items, using Python Flask and SQLi
 ## Directory Structure and File Explanations
 
 - **app.py**: Main Flask application. Sets up the app, logging, error handling, database helpers, and registers all endpoints (via Blueprints).
-- **api.cgi**: CGI entry point for running the Flask app under CGI. Handles environment setup and error logging for CGI deployments.
+- **api.cgi**: Shell CGI launcher that uses Apache's `SCRIPT_FILENAME` to run the adjacent virtualenv Python and `cgi_app.py`, avoiding unreliable Python shebangs and CGI working directories.
+- **cgi_app.py**: Python CGI entry point; resolves its backend directory and logs startup/import failures in `logs/cgi_error.log`.
+- **session_secret.py**: Loads the session signing key without a hardcoded fallback.
 - **config_helper.py**: Utility for reading deployment configuration from config.json and determining backend paths.
 - **init_db.py**: Script to initialize the SQLite database and create sample data.
 - **logging_helper.py**: Helper for logging exceptions from CGI scripts to backend/logs/cgi_error.log.
 - **requirements.txt**: Python dependencies for the backend (Flask, Flask-CORS, etc).
 - **endpoints/**: Directory containing modularized Flask Blueprints for each API endpoint.
     - **items.py**: Blueprint for all /items endpoints (CRUD for items).
+    - **auth.py**: Registration, login, logout, and current-user endpoints.
 - **database/**: Contains the SQLite database file (app.db).
 - **logs/**: Stores log files for Flask and CGI error logging.
     - **flask_error.log**: Logs unhandled exceptions from Flask app.
@@ -22,6 +25,30 @@ This backend provides a REST API for managing items, using Python Flask and SQLi
 - **__pycache__/**: Python bytecode cache (auto-generated).
 
 ## Setup
+
+Set a random, stable `SECRET_KEY` in the project-root `.env`. Local startup
+loads that key unless the process environment overrides it. Missing or empty
+keys stop startup. Do not commit `.env` or copy it into the web root.
+
+Deployment transfers only the key over SSH, without printing it, to
+`~/.config/react-python-sqlite-boilerplate/session.json` outside the web root.
+The directory uses permissions 700 and the file 600. CGI reads this private
+file on every request; `APP_SECRET_FILE` overrides the path. Changing the key
+invalidates existing sessions, not accounts or todos. For additional deployed
+apps, use a distinct private path in both `deploy.sh` and `cgi_app.py`.
+
+HTTP cookie settings are unchanged. `FLASK_ENV=production` enables secure-only
+cookies and requires HTTPS. A secret key does not encrypt HTTP traffic.
+
+Authentication uses Flask-Limiter's automatic request hook, not a manual
+`check()` call on its extension, which newer releases store as a set.
+
+Deployment checks that the virtualenv's recorded Python major/minor version
+matches its interpreter and that pip is importable. Hosting Python upgrades can
+invalidate an old virtualenv. In that case the old environment is preserved
+under `backend/venv-backup.*/venv` and a fresh one is created. All dependencies
+are installed using `venv/bin/python -m pip`; installation or import failures
+stop deployment instead of falling back to an incomplete dependency list.
 
 1. Install Python dependencies:
     ```bash
@@ -41,6 +68,14 @@ This backend provides a REST API for managing items, using Python Flask and SQLi
     ```
 
 ## API Examples
+
+- `POST /auth/register` and `POST /auth/login`: username/password JSON
+- `POST /auth/logout`: clear the login session
+- `GET /auth/me`: current username or `null`
+
+The frontend uses the Vite `<BASE_URL>api` proxy in development and the CGI URL
+in production. Backend JSON validation errors are shown on the account forms;
+non-JSON responses explicitly report a backend/routing failure.
 
 ### Get All Items
 ```bash

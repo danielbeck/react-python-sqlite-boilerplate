@@ -38,14 +38,6 @@ def validate_password(password):
 
 @bp.route('/register', methods=['POST'])
 def register():
-    limiter = current_app.extensions.get('limiter')
-    if limiter:
-        # Apply rate limit check
-        try:
-            limiter.check()
-        except Exception:
-            return jsonify({'error': 'Rate limit exceeded. Please try again later.'}), 429
-    
     try:
         data = request.get_json()
     except Exception:
@@ -94,14 +86,6 @@ def register():
 
 @bp.route('/login', methods=['POST'])
 def login():
-    limiter = current_app.extensions.get('limiter')
-    if limiter:
-        # Apply rate limit check
-        try:
-            limiter.check()
-        except Exception:
-            return jsonify({'error': 'Rate limit exceeded. Please try again later.'}), 429
-    
     try:
         data = request.get_json()
     except Exception:

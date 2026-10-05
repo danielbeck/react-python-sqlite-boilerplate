@@ -2,6 +2,7 @@
 
 # Deployment script - Deploys to configured directory
 # Configuration is read from .env file
+set -o pipefail
 
 # Read configuration from .env file
 if [ ! -f ".env" ]; then
@@ -14,6 +15,11 @@ fi
 set -a
 source .env
 set +a
+
+if [ -z "${SECRET_KEY:-}" ]; then
+    echo "SECRET_KEY must be set in .env before deploying."
+    exit 1
+fi
 
 # Normalize paths using Python
 eval $(python3 - <<PY
@@ -82,6 +88,14 @@ cleanup() {
 
 trap cleanup EXIT
 
+echo "Installing private session configuration (key is not printed)..."
+if ! node -e 'process.stdout.write(JSON.stringify({SECRET_KEY: process.env.SECRET_KEY}))' |
+    ssh -o ControlPath="$CONTROL_PATH" $USER@$HOST \
+        'set -e; umask 077; mkdir -p "$HOME/.config/react-python-sqlite-boilerplate"; chmod 700 "$HOME/.config/react-python-sqlite-boilerplate"; temp=$(mktemp "$HOME/.config/react-python-sqlite-boilerplate/session.XXXXXX"); trap '\''rm -f "$temp"'\'' EXIT; cat > "$temp"; chmod 600 "$temp"; mv "$temp" "$HOME/.config/react-python-sqlite-boilerplate/session.json"'; then
+    echo "Failed to install private session configuration; deployment stopped."
+    exit 1
+fi
+
 echo "📦 Deploying backend to ${REMOTE_DIR}backend/..."
 echo "🗂️  Ensuring remote directories exist..."
 
@@ -97,17 +111,6 @@ done
 BACKEND_EXISTS=$(ssh -o ControlPath="$CONTROL_PATH" $USER@$HOST "if [ -d '${REMOTE_DIR}backend' ]; then echo 1; else echo 0; fi")
 ssh -o ControlPath="$CONTROL_PATH" $USER@$HOST "mkdir -p ${REMOTE_DIR}backend ${REMOTE_DIR}frontend"
 echo "✅ Remote directories ensured."
-# Prepare a templated api.cgi with the computed backend dir and upload it
-# Build and normalize backend dir by collapsing duplicate slashes
-BACKEND_DIR="${BACKEND_ROOT}${BASE_DIR}${SUB_DIR}backend"
-BACKEND_DIR=$(echo "${BACKEND_DIR}" | sed -E 's:/+:/:g')
-if [ -z "$SUB_DIR" ]; then
-    BACKEND_DIR="${BACKEND_ROOT}${BASE_DIR}backend"
-    BACKEND_DIR=$(echo "${BACKEND_DIR}" | sed -E 's:/+:/:g')
-fi
-echo "[DEBUG] BACKEND_DIR: $BACKEND_DIR"
-
-
 # Rsync backend with --delete to remove unwanted files
 rsync -avz --delete --progress \
     -e "ssh -o ControlPath=$CONTROL_PATH" \
@@ -125,11 +128,8 @@ rsync -avz --delete --progress \
     --exclude='.DS_Store' \
     backend/ $USER@$HOST:${REMOTE_DIR}backend/
 
-# Create a templated api.cgi locally with the correct backend path
-TMP_API=$(mktemp /tmp/api.cgi.XXXX)
-sed "s|__DEPLOY_BACKEND_DIR__|${BACKEND_DIR}|g" backend/api.cgi > "$TMP_API"
-scp -o ControlPath="$CONTROL_PATH" "$TMP_API" $USER@$HOST:${REMOTE_DIR}backend/api.cgi
-rm -f "$TMP_API"
+# The CGI launcher resolves its adjacent virtualenv and Python entry point.
+scp -o ControlPath="$CONTROL_PATH" backend/api.cgi $USER@$HOST:${REMOTE_DIR}backend/api.cgi
 
 # Harden permissions: remove group/world write bits on backend files and
 # ensure CGI scripts are executable. Keep logs directory writable so the
@@ -143,7 +143,26 @@ echo "✅ Remote permissions hardened."
 
 # Always ensure backend venv exists and dependencies are installed
 echo "🐍 Setting up Python virtual environment and installing backend dependencies..."
-ssh -o ControlPath="$CONTROL_PATH" $USER@$HOST "cd ${REMOTE_DIR}backend && if [ ! -d venv ]; then python3 -m venv venv; fi && source venv/bin/activate && pip install --upgrade pip && if [ -f requirements.txt ]; then pip install -r requirements.txt || pip install Flask Flask-CORS; else pip install Flask Flask-CORS; fi"
+if ! ssh -o ControlPath="$CONTROL_PATH" $USER@$HOST "cd '${REMOTE_DIR}backend' && bash -s" <<'REMOTE_PYTHON_SETUP'
+set -e
+if [ -d venv ]; then
+    if ! venv/bin/python -c 'import sys, pip; from pathlib import Path; config = dict(line.strip().split(" = ", 1) for line in Path("venv/pyvenv.cfg").read_text().splitlines() if " = " in line); assert config["version"].split(".")[:2] == [str(sys.version_info.major), str(sys.version_info.minor)]'; then
+        backup=$(mktemp -d venv-backup.XXXXXX)
+        mv venv "$backup/venv"
+        echo "Preserved incompatible virtualenv in $backup/venv; creating a new one."
+    fi
+fi
+if [ ! -d venv ]; then
+    python3 -m venv venv
+fi
+venv/bin/python -m pip install --upgrade pip
+venv/bin/python -m pip install -r requirements.txt
+venv/bin/python -c 'import flask, flask_cors, flask_limiter, flask_wtf, dotenv'
+REMOTE_PYTHON_SETUP
+then
+    echo "Backend dependency setup failed; deployment stopped."
+    exit 1
+fi
 echo "✅ Python virtual environment and dependencies ready."
 
 # If backend did not exist before, or --force-fresh is set, initialize the database using the venv's python

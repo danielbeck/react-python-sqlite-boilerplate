@@ -10,6 +10,24 @@ body {
     color: white;
     padding: 2rem 1rem 1rem 1rem;
     text-align: center;
+    position: relative;
+}
+
+.App-header .auth-link {
+    align-items: center;
+    border-radius: 50%;
+    color: inherit;
+    display: inline-flex;
+    height: 44px;
+    justify-content: center;
+    position: absolute;
+    right: 16px;
+    top: 12px;
+    text-decoration: none;
+    width: 44px;
+
+    &:hover { background: rgb(255 255 255 / 12%); }
+    &:focus-visible { outline: 3px solid #387f69; outline-offset: 3px; }
 }
 
 h1,

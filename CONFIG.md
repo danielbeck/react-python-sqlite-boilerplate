@@ -113,7 +113,7 @@ Result:
 ### Backend Configuration
 
 1. **deploy.sh**: Reads `config.json` and constructs the deployment path
-2. **api.cgi**: The deployed `api.cgi` contains a deploy-time placeholder (`__DEPLOY_BACKEND_DIR__`) which `deploy.sh` replaces with the computed absolute backend directory. This avoids requiring `config.json` on the host for shared-host compatibility.
+2. **api.cgi**: A shell launcher resolves Apache's script path and invokes the adjacent virtualenv Python and `cgi_app.py`. No deploy-time path substitution or `config.json` is required. Deployment transfers only `SECRET_KEY` from `.env` into `~/.config/react-python-sqlite-boilerplate/session.json` (permissions 600, outside the web root); CGI loads it on every request. Local startup reads the project `.env`, with a process `SECRET_KEY` taking precedence. Missing keys stop startup; there is no hardcoded fallback. Keep the key stable across deployments to preserve sessions. For multiple deployed apps, configure a separate private path in each app's deployment script and CGI entry point.
 3. **config_helper.py**: A local helper that can parse `config.json` when running locally; not required on the server when using deploy-time templating.
 
 ### Frontend Configuration
@@ -172,7 +172,7 @@ The script reads `config.json` and deploys to the configured location.
 
 If `config.json` is missing:
 - **deploy.sh**: Will exit with an error
-- **api.cgi**: Falls back to hardcoded path `/kunden/homepages/29/d557350892/htdocs/nb/backend`
+- **api.cgi**: Resolves its adjacent virtualenv and Python entry point using Apache's script path.
 - **Frontend build**: Uses default base path `/`
 
 ### Wrong Paths After Deployment
