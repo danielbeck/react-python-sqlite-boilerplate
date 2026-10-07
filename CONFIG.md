@@ -77,10 +77,10 @@ is enabled in both modes. The SMTP provider must authorize the sender address.
 `PASSWORD_RESET_URL` optionally overrides the complete frontend reset-page URL,
 including any subdirectory, with no query or fragment. Local development defaults
 to `http://localhost:3000/<DEPLOY_SUB_DIR>/reset-password`; deployment defaults to
-`<PRODUCTION_DOMAIN>/<DEPLOY_SUB_DIR>/reset-password`. Use HTTPS except on localhost.
-If Vite uses a different port, set a local override. Remove or update that override
-before deployment, since an explicit override is also deployed and production
-deployment requires an HTTPS URL.
+`<PRODUCTION_DOMAIN>/<DEPLOY_SUB_DIR>/reset-password`, matching whatever scheme
+`PRODUCTION_DOMAIN` uses (HTTPS is strongly recommended but not required). If Vite
+uses a different port, set a local override. Remove or update that override before
+deployment, since an explicit override is also deployed.
 
 Local startup reads these settings from `.env`, with process environment values
 taking precedence. Deployment copies only the session key, SMTP settings, reset
@@ -150,7 +150,7 @@ Result:
 ### Backend Configuration
 
 1. **deploy.sh**: Reads `config.json` and constructs the deployment path
-2. **api.cgi**: A shell launcher resolves Apache's script path and invokes the adjacent virtualenv Python and `cgi_app.py`. No deploy-time path substitution or `config.json` is required. Deployment transfers `SECRET_KEY`, SMTP settings, and the reset URL from `.env` into `~/.config/react-python-sqlite-boilerplate/session.json` (permissions 600, outside the web root), with `FLASK_ENV=production`; CGI loads it on every request. Local startup reads the project `.env`, with process environment values taking precedence. Missing keys stop startup; there is no hardcoded fallback. Keep the key stable across deployments to preserve sessions. For multiple deployed apps, configure a separate private path in each app's deployment script and CGI entry point.
+2. **api.cgi**: A shell launcher resolves Apache's script path and invokes the adjacent virtualenv Python and `cgi_app.py`. No deploy-time path substitution or `config.json` is required. Deployment transfers `SECRET_KEY`, SMTP settings, and the reset URL from `.env` into `~/.config/react-python-sqlite-boilerplate/session.json` (permissions 600, outside the web root), setting `FLASK_ENV=production` (and therefore secure-only cookies) only when `PRODUCTION_DOMAIN` uses HTTPS; CGI loads it on every request. Local startup reads the project `.env`, with process environment values taking precedence. Missing keys stop startup; there is no hardcoded fallback. Keep the key stable across deployments to preserve sessions. For multiple deployed apps, configure a separate private path in each app's deployment script and CGI entry point.
 3. **config_helper.py**: A local helper that can parse `config.json` when running locally; not required on the server when using deploy-time templating.
 
 ### Frontend Configuration

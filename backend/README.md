@@ -39,8 +39,10 @@ file on every request; `APP_SECRET_FILE` overrides the path. Changing the key
 invalidates existing sessions, not accounts or todos. For additional deployed
 apps, use a distinct private path in both `deploy.sh` and `cgi_app.py`.
 
-`FLASK_ENV=production` enables secure-only
-cookies and requires HTTPS. A secret key does not encrypt HTTP traffic.
+`FLASK_ENV=production` enables secure-only cookies and is only set automatically
+during deployment when `PRODUCTION_DOMAIN` uses HTTPS; plain-HTTP deployments
+keep non-secure cookies so sessions still work. A secret key does not encrypt
+HTTP traffic.
 
 Authentication uses Flask-Limiter's automatic request hook, not a manual
 `check()` call on its extension, which newer releases store as a set.

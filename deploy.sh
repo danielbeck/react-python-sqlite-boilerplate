@@ -93,12 +93,14 @@ if ! ACCOUNT_CONFIG=$(node -e '
     const keys = ["SECRET_KEY", "SMTP_HOST", "SMTP_PORT", "SMTP_SECURE", "SMTP_FROM_EMAIL", "SMTP_FROM_NAME", "SMTP_USERNAME", "SMTP_PASSWORD"];
     const settings = Object.fromEntries(keys.map(key => [key, process.env[key]]));
     const domain = process.env.PRODUCTION_DOMAIN;
-    if (!domain || !domain.startsWith("https://")) throw new Error("PRODUCTION_DOMAIN must use HTTPS.");
+    if (!domain) throw new Error("PRODUCTION_DOMAIN is required.");
     const sub = (process.env.DEPLOY_SUB_DIR || "").replace(/^\/+|\/+$/g, "");
     settings.PASSWORD_RESET_URL = process.env.PASSWORD_RESET_URL || `${domain.replace(/\/+$/, "")}/${sub ? sub + "/" : ""}reset-password`;
     const resetURL = new URL(settings.PASSWORD_RESET_URL);
-    if (resetURL.protocol !== "https:" || resetURL.hash || resetURL.search) throw new Error("Production PASSWORD_RESET_URL must use HTTPS without a query or fragment.");
-    settings.FLASK_ENV = "production";
+    if (resetURL.hash || resetURL.search) throw new Error("Production PASSWORD_RESET_URL must not include a query or fragment.");
+    // Secure-only cookies require HTTPS; only mark the deployment "production"
+    // (and therefore Secure-only) when the production domain actually uses HTTPS.
+    settings.FLASK_ENV = domain.startsWith("https://") ? "production" : "development";
     process.stdout.write(JSON.stringify(settings));
 '); then
     echo "Invalid private account configuration; deployment stopped."
