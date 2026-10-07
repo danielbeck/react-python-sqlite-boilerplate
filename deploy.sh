@@ -88,13 +88,29 @@ cleanup() {
 
 trap cleanup EXIT
 
-echo "Installing private session configuration (key is not printed)..."
-if ! node -e 'process.stdout.write(JSON.stringify({SECRET_KEY: process.env.SECRET_KEY}))' |
-    ssh -o ControlPath="$CONTROL_PATH" $USER@$HOST \
-        'set -e; umask 077; mkdir -p "$HOME/.config/react-python-sqlite-boilerplate"; chmod 700 "$HOME/.config/react-python-sqlite-boilerplate"; temp=$(mktemp "$HOME/.config/react-python-sqlite-boilerplate/session.XXXXXX"); trap '\''rm -f "$temp"'\'' EXIT; cat > "$temp"; chmod 600 "$temp"; mv "$temp" "$HOME/.config/react-python-sqlite-boilerplate/session.json"'; then
-    echo "Failed to install private session configuration; deployment stopped."
+echo "Installing private account configuration (secrets are not printed)..."
+if ! ACCOUNT_CONFIG=$(node -e '
+    const keys = ["SECRET_KEY", "SMTP_HOST", "SMTP_PORT", "SMTP_SECURE", "SMTP_FROM_EMAIL", "SMTP_FROM_NAME", "SMTP_USERNAME", "SMTP_PASSWORD"];
+    const settings = Object.fromEntries(keys.map(key => [key, process.env[key]]));
+    const domain = process.env.PRODUCTION_DOMAIN;
+    if (!domain || !domain.startsWith("https://")) throw new Error("PRODUCTION_DOMAIN must use HTTPS.");
+    const sub = (process.env.DEPLOY_SUB_DIR || "").replace(/^\/+|\/+$/g, "");
+    settings.PASSWORD_RESET_URL = process.env.PASSWORD_RESET_URL || `${domain.replace(/\/+$/, "")}/${sub ? sub + "/" : ""}reset-password`;
+    const resetURL = new URL(settings.PASSWORD_RESET_URL);
+    if (resetURL.protocol !== "https:" || resetURL.hash || resetURL.search) throw new Error("Production PASSWORD_RESET_URL must use HTTPS without a query or fragment.");
+    settings.FLASK_ENV = "production";
+    process.stdout.write(JSON.stringify(settings));
+'); then
+    echo "Invalid private account configuration; deployment stopped."
     exit 1
 fi
+if ! printf '%s' "$ACCOUNT_CONFIG" |
+    ssh -o ControlPath="$CONTROL_PATH" $USER@$HOST \
+        'set -e; umask 077; mkdir -p "$HOME/.config/react-python-sqlite-boilerplate"; chmod 700 "$HOME/.config/react-python-sqlite-boilerplate"; temp=$(mktemp "$HOME/.config/react-python-sqlite-boilerplate/session.XXXXXX"); trap '\''rm -f "$temp"'\'' EXIT; cat > "$temp"; chmod 600 "$temp"; mv "$temp" "$HOME/.config/react-python-sqlite-boilerplate/session.json"'; then
+    echo "Failed to install private account configuration; deployment stopped."
+    exit 1
+fi
+unset ACCOUNT_CONFIG
 
 echo "📦 Deploying backend to ${REMOTE_DIR}backend/..."
 echo "🗂️  Ensuring remote directories exist..."
@@ -171,6 +187,12 @@ if [ "$BACKEND_EXISTS" = "0" ] || [ "$FORCE_FRESH" = "1" ]; then
     ssh -o ControlPath="$CONTROL_PATH" $USER@$HOST "cd ${REMOTE_DIR}backend && rm -f database/app.db"
     ssh -o ControlPath="$CONTROL_PATH" $USER@$HOST "cd ${REMOTE_DIR}backend && source venv/bin/activate && if [ -f init_db.py ]; then venv/bin/python init_db.py; fi"
     echo "✅ Backend initialized."
+fi
+
+# Apply additive account migrations on every deployment, including existing databases.
+if ! ssh -o ControlPath="$CONTROL_PATH" $USER@$HOST "cd '${REMOTE_DIR}backend' && venv/bin/python -c 'import sqlite3; from account_schema import ensure_account_schema; db = sqlite3.connect(\"database/app.db\"); ensure_account_schema(db); db.close()'"; then
+    echo "Database migration failed; deployment stopped."
+    exit 1
 fi
 
 # Always ensure correct permissions for database directory and file

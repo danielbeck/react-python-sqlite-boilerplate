@@ -6,6 +6,7 @@ import unittest
 from unittest.mock import patch
 
 from backend.app import app
+from backend.account_schema import ensure_account_schema
 from backend.session_secret import load_session_secret
 
 
@@ -46,6 +47,7 @@ class AccountBackportTests(unittest.TestCase):
                         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
                     );
                 ''')
+                ensure_account_schema(db)
 
             def get_db():
                 db = sqlite3.connect(path)
@@ -57,9 +59,9 @@ class AccountBackportTests(unittest.TestCase):
                     for endpoint in ['/auth/login', '/auth/register']:
                         self.assertEqual(client.post(endpoint, json={}).status_code, 400)
                     self.assertEqual(client.get('/items/').status_code, 401)
-                    credentials = {'username': 'test-user', 'password': 'TestPassword123'}
+                    credentials = {'email': 'test-user@example.com', 'password': 'TestPassword123'}
                     self.assertEqual(client.post('/auth/register', json=credentials).status_code, 200)
-                    self.assertEqual(client.get('/auth/me').get_json()['user'], 'test-user')
+                    self.assertEqual(client.get('/auth/me').get_json()['user'], 'test-user@example.com')
                     response = client.post('/items/', json={'name': 'Test todo', 'description': 'Keep items'})
                     self.assertEqual(response.status_code, 201)
                     item_id = response.get_json()['id']

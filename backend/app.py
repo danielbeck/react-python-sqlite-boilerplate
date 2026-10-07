@@ -10,12 +10,22 @@ import logging
 import traceback
 from collections import deque
 try:
-    from backend.session_secret import load_session_secret
+    from backend.session_secret import load_session_secret, load_settings
+    from backend.account_schema import ensure_account_schema
 except ImportError:
-    from session_secret import load_session_secret
+    from session_secret import load_session_secret, load_settings
+    from account_schema import ensure_account_schema
 
 app = Flask(__name__)
 app.secret_key = load_session_secret()
+settings = load_settings()
+for key in ('SMTP_HOST', 'SMTP_PORT', 'SMTP_SECURE', 'SMTP_FROM_EMAIL',
+            'SMTP_FROM_NAME', 'SMTP_USERNAME', 'SMTP_PASSWORD', 'PASSWORD_RESET_URL'):
+    app.config[key] = settings.get(key)
+sub_dir = (settings.get('DEPLOY_SUB_DIR') or '').strip('/')
+app.config['PASSWORD_RESET_URL'] = settings.get('PASSWORD_RESET_URL') or (
+    'http://localhost:3000/' + (sub_dir + '/' if sub_dir else '') + 'reset-password'
+)
 
 # CORS Configuration - read from environment or use dev defaults
 ALLOWED_ORIGINS = os.environ.get('ALLOWED_ORIGINS', '').split(',') if os.environ.get('ALLOWED_ORIGINS') else [
@@ -69,7 +79,7 @@ def _trim_log(path, max_lines=10000):
 # Database path
 # Prefer APP_BASE_DIR set by `api.cgi` when running under CGI/chroot.
 BASE_DIR = os.environ.get('APP_BASE_DIR') or os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.path.join(BASE_DIR, 'database', 'app.db')
+DB_PATH = settings.get('DB_PATH') or os.path.join(BASE_DIR, 'database', 'app.db')
 
 # Debug: log APP_BASE_DIR and DB_PATH to flask_error.log
 try:
@@ -84,6 +94,10 @@ def get_db():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
+
+with get_db() as schema_db:
+    ensure_account_schema(schema_db)
+schema_db.close()
 
 def dict_from_row(row):
     """Convert sqlite3.Row to dictionary"""
@@ -118,7 +132,7 @@ app.config['get_db'] = get_db
 app.config['dict_from_row'] = dict_from_row
 
 # Secure session configuration
-app.config['SESSION_COOKIE_SECURE'] = os.environ.get('FLASK_ENV') == 'production'  # HTTPS only in production
+app.config['SESSION_COOKIE_SECURE'] = settings.get('FLASK_ENV') == 'production'  # HTTPS only in production
 app.config['SESSION_COOKIE_HTTPONLY'] = True  # Prevent JavaScript access
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # CSRF protection
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)  # Session timeout

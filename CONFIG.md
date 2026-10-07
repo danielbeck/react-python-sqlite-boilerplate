@@ -56,6 +56,43 @@ A subdirectory within baseDir for this specific app.
 #### PRODUCTION_DOMAIN
 The full production domain URL (e.g., `https://yourdomain.com`).
 
+### Password Recovery Email
+
+Set these values in the project-root `.env` (never commit real credentials):
+
+```env
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_FROM_EMAIL=accounts@yourdomain.com
+SMTP_FROM_NAME="Your App"
+SMTP_USERNAME=accounts@yourdomain.com
+SMTP_PASSWORD="your-smtp-password"
+```
+
+`SMTP_SECURE=false` uses STARTTLS (typically port 587), not unencrypted SMTP.
+`SMTP_SECURE=true` uses implicit TLS (typically port 465). Certificate verification
+is enabled in both modes. The SMTP provider must authorize the sender address.
+
+`PASSWORD_RESET_URL` optionally overrides the complete frontend reset-page URL,
+including any subdirectory, with no query or fragment. Local development defaults
+to `http://localhost:3000/<DEPLOY_SUB_DIR>/reset-password`; deployment defaults to
+`<PRODUCTION_DOMAIN>/<DEPLOY_SUB_DIR>/reset-password`. Use HTTPS except on localhost.
+If Vite uses a different port, set a local override. Remove or update that override
+before deployment, since an explicit override is also deployed and production
+deployment requires an HTTPS URL.
+
+Local startup reads these settings from `.env`, with process environment values
+taking precedence. Deployment copies only the session key, SMTP settings, reset
+URL, and production cookie setting to the private server configuration outside
+the web root; SMTP credentials are never added to the frontend build. Redeploy
+after changing SMTP settings. Links expire after 15 minutes and may be used once.
+The backend enforces matching passwords with 8-128 characters, uppercase,
+lowercase, and a number, then invalidates existing sessions after a reset.
+
+Email recovery requires a registered email account. Existing username-only rows
+are preserved but are no longer login identities; register new email accounts.
+
 ## Deployment Scenarios
 
 ### Scenario 1: Single App (Direct to Base)
@@ -113,7 +150,7 @@ Result:
 ### Backend Configuration
 
 1. **deploy.sh**: Reads `config.json` and constructs the deployment path
-2. **api.cgi**: A shell launcher resolves Apache's script path and invokes the adjacent virtualenv Python and `cgi_app.py`. No deploy-time path substitution or `config.json` is required. Deployment transfers only `SECRET_KEY` from `.env` into `~/.config/react-python-sqlite-boilerplate/session.json` (permissions 600, outside the web root); CGI loads it on every request. Local startup reads the project `.env`, with a process `SECRET_KEY` taking precedence. Missing keys stop startup; there is no hardcoded fallback. Keep the key stable across deployments to preserve sessions. For multiple deployed apps, configure a separate private path in each app's deployment script and CGI entry point.
+2. **api.cgi**: A shell launcher resolves Apache's script path and invokes the adjacent virtualenv Python and `cgi_app.py`. No deploy-time path substitution or `config.json` is required. Deployment transfers `SECRET_KEY`, SMTP settings, and the reset URL from `.env` into `~/.config/react-python-sqlite-boilerplate/session.json` (permissions 600, outside the web root), with `FLASK_ENV=production`; CGI loads it on every request. Local startup reads the project `.env`, with process environment values taking precedence. Missing keys stop startup; there is no hardcoded fallback. Keep the key stable across deployments to preserve sessions. For multiple deployed apps, configure a separate private path in each app's deployment script and CGI entry point.
 3. **config_helper.py**: A local helper that can parse `config.json` when running locally; not required on the server when using deploy-time templating.
 
 ### Frontend Configuration

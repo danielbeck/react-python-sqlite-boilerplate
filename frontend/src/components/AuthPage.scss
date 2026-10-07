@@ -88,6 +88,13 @@
     overflow-wrap: anywhere;
     padding: 10px 12px;
 }
+.auth-success {
+    background: #f0f6f3;
+    border: 1px solid #b7c9c2;
+    border-radius: 6px;
+    margin: 20px 0;
+    padding: 10px 12px;
+}
 
 @media (max-width: 480px) {
     .auth-page { padding: 64px 16px 40px; }

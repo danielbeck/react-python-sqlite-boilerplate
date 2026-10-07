@@ -81,11 +81,10 @@ app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)
 
 **Changes:**
 
-#### Username Validation
-- Minimum length: 3 characters
-- Maximum length: 50 characters
-- Allowed characters: letters, numbers, hyphens, underscores
-- Pattern: `^[a-zA-Z0-9_-]+$`
+#### Email Validation
+- Required email-format address, maximum 254 characters
+- Whitespace trimmed and addresses normalized to lowercase
+- Case-insensitive uniqueness and lookup
 
 #### Password Validation
 - Minimum length: 8 characters
@@ -101,13 +100,16 @@ app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)
 
 **Code Example:**
 ```python
-def validate_username(username):
-    if len(username) < 3 or len(username) > 50:
-        return False, 'Username must be 3-50 characters'
-    if not re.match(r'^[a-zA-Z0-9_-]+$', username):
-        return False, 'Invalid characters in username'
-    return True, None
+from backend.endpoints.auth import validate_email
+
+valid, error = validate_email('person@example.com')
 ```
+
+Password recovery uses 256-bit random, single-use tokens stored only as hashes,
+with expiry enforced at 15 minutes. Issuance is serialized and throttled per
+account in SQLite, including CGI deployments. Resetting a password increments
+the account's session version, revoking previously issued sessions. SMTP uses
+verified STARTTLS or implicit TLS. See [the account API guide](backend/README.md#api-examples).
 
 ---
 
@@ -274,11 +276,11 @@ ALLOWED_ORIGINS=https://yourdomain.com,https://www.yourdomain.com
 - [x] Request size limiting
 - [x] Session timeout (24 hours)
 - [x] Comprehensive error handling with logging
+- [x] Email password reset with single-use, 15-minute links and session revocation
 
 ### Not Yet Implemented ⚠️
 - [ ] Two-Factor Authentication (2FA)
 - [ ] Email verification
-- [ ] Password reset functionality
 - [ ] Account lockout after failed attempts
 - [ ] Audit logging for security events
 - [ ] IP-based blocking/whitelisting
@@ -297,7 +299,7 @@ ALLOWED_ORIGINS=https://yourdomain.com,https://www.yourdomain.com
 for i in {1..15}; do
   curl -X POST http://localhost:8000/auth/login \
     -H "Content-Type: application/json" \
-    -d '{"username":"test","password":"test"}'
+    -d '{"email":"test@example.com","password":"test"}'
 done
 ```
 
@@ -306,12 +308,12 @@ done
 # Test weak password
 curl -X POST http://localhost:8000/auth/register \
   -H "Content-Type: application/json" \
-  -d '{"username":"testuser","password":"weak"}'
+  -d '{"email":"testuser@example.com","password":"weak"}'
 
-# Test invalid username
+# Test invalid email
 curl -X POST http://localhost:8000/auth/register \
   -H "Content-Type: application/json" \
-  -d '{"username":"test@user!","password":"ValidPass123"}'
+  -d '{"email":"not-an-email","password":"ValidPass123"}'
 ```
 
 ### Test Security Headers
@@ -332,6 +334,11 @@ curl -I http://localhost:8000/
 ---
 
 ## 📝 Changelog
+
+### 2026-10-07
+- Replaced username-based login and registration with email addresses.
+- Added SMTP password recovery with single-use links expiring after 15 minutes.
+- Added password confirmation, persistent resend cooldown, and session revocation.
 
 ### 2026-02-07
 - ✅ Added Flask-Limiter for rate limiting

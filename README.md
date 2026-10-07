@@ -57,10 +57,17 @@ See `backend/app.py` for authoritative endpoint behavior.
 The header profile icon links to `/auth` for guests and `/profile` for logged-in
 users. Login/register tabs share responsive card styling, labeled fields,
 keyboard navigation, submission states, and API error messages. The profile
-page displays the username and a styled Log out button. Logout failures retain
+page displays the email address and a styled Log out button. Logout failures retain
 the account and show an error; successful logout clears displayed todos and
 returns home. Direct profile visits wait for authentication before redirecting
 guests. The todo list and its item endpoints remain unchanged.
+
+Login and registration use email addresses. The "Forgot my password" link opens
+an email request form; emailed single-use links let users enter and confirm a new
+password and expire after 15 minutes. Successful resets revoke existing sessions.
+Set SMTP values in `.env`; see [the email configuration guide](CONFIG.md#password-recovery-email).
+Legacy username-only accounts are preserved in the database but cannot log in;
+create new email-based accounts.
 
 ## Database
 
@@ -89,11 +96,13 @@ cp .env.example .env
 ./deploy.sh
 ```
 - Syncs backend and frontend code to the configured remote directory.
-- Copies only the session key to private server configuration outside the web
-  root, without printing it. No `.env` upload is needed; see `backend/README.md`.
+- Copies the session key, SMTP settings, and reset URL to private server configuration
+  outside the web root, without printing secrets. No `.env` upload is needed;
+  see [backend/README.md](backend/README.md).
 - Installs backend Python dependencies in a virtual environment (if not already present).
 - Initializes the backend database **only if** this is the first deploy (i.e., the backend directory did not previously exist).
 - Does **not** overwrite an existing database or sample data on redeploys.
+- Applies additive account-schema migrations on every deploy.
 
 ### Force Fresh Deploy (reset database/sample data)
 

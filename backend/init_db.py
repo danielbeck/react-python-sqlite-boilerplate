@@ -1,5 +1,9 @@
 import sqlite3
 import os
+try:
+    from backend.account_schema import ensure_account_schema
+except ImportError:
+    from account_schema import ensure_account_schema
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_DIR = os.path.join(BASE_DIR, 'database')
@@ -31,6 +35,8 @@ def init_database():
             FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
         )
     ''')
+
+    ensure_account_schema(conn)
 
     # Add sample items for the first user if exists
     cursor.execute('SELECT id FROM users ORDER BY id LIMIT 1')

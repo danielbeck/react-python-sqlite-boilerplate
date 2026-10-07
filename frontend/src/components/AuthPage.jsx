@@ -10,7 +10,7 @@ const modes = [
 
 export default function AuthPage({ onAuth }) {
     const [mode, setMode] = useState('login');
-    const [username, setUsername] = useState('');
+    const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState(null);
     const [submitting, setSubmitting] = useState(false);
@@ -44,7 +44,7 @@ export default function AuthPage({ onAuth }) {
             const data = await fetchAPI(endpoint, {
                 method: 'POST',
                 credentials: 'include',
-                body: JSON.stringify({ username, password }),
+                body: JSON.stringify({ email, password }),
             });
             onAuth && onAuth(data);
             navigate('/');
@@ -90,16 +90,17 @@ export default function AuthPage({ onAuth }) {
                     <p className="auth-description">{description}</p>
                     <form onSubmit={handleSubmit} aria-busy={submitting}>
                         <div className="auth-field">
-                            <label htmlFor={`auth-username-${id}`}>Username</label>
+                            <label htmlFor={`auth-email-${id}`}>Email</label>
                             <input
-                                id={`auth-username-${id}`}
-                                name="username"
-                                type="text"
+                                id={`auth-email-${id}`}
+                                name="email"
+                                type="email"
                                 autoComplete="username"
                                 autoCapitalize="none"
                                 spellCheck={false}
-                                value={username}
-                                onChange={event => setUsername(event.target.value)}
+                                value={email}
+                                onChange={event => setEmail(event.target.value)}
+                                maxLength={254}
                                 disabled={submitting}
                                 required
                             />
@@ -115,9 +116,13 @@ export default function AuthPage({ onAuth }) {
                                 onChange={event => setPassword(event.target.value)}
                                 disabled={submitting}
                                 aria-describedby={error ? `auth-error-${id}` : undefined}
+                                minLength={id === 'register' ? 8 : undefined}
+                                maxLength={128}
                                 required
                             />
+                            {id === 'register' && <p className="auth-description">Use 8-128 characters, including an uppercase letter, a lowercase letter, and a number.</p>}
                         </div>
+                        {id === 'login' && <Link className="auth-back" to="/forgot-password">Forgot my password</Link>}
                         {error && mode === id && <p className="auth-error" id={`auth-error-${id}`} role="alert">{error}</p>}
                         <button className="auth-submit" type="submit" disabled={submitting}>
                             {submitting ? id === 'register' ? 'Creating account...' : 'Logging in...' : label}
