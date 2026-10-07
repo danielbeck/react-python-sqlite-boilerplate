@@ -18,8 +18,6 @@ def reset_email_settings(config):
     url = urlsplit(config['PASSWORD_RESET_URL'])
     if url.scheme not in ('http', 'https') or not url.netloc or url.fragment or url.query:
         raise ValueError('PASSWORD_RESET_URL must be an absolute URL without a query or fragment.')
-    if url.scheme != 'https' and url.hostname not in ('localhost', '127.0.0.1'):
-        raise ValueError('PASSWORD_RESET_URL must use HTTPS except on localhost.')
     return port, secure == 'true'
 
 

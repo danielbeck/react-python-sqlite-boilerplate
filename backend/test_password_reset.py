@@ -244,11 +244,21 @@ class AccountInfrastructureTests(unittest.TestCase):
             'PASSWORD_RESET_URL': 'https://example.com/reset-password',
         }
         for change in ({'SMTP_PORT': 'not-a-port'}, {'SMTP_PORT': '70000'}, {'SMTP_SECURE': 'maybe'},
-                       {'PASSWORD_RESET_URL': 'http://example.com/reset-password'},
                        {'PASSWORD_RESET_URL': '/reset-password'},
                        {'PASSWORD_RESET_URL': 'https://example.com/reset-password#token=bad'}):
             with self.assertRaises(ValueError):
                 reset_email_settings(dict(config, **change))
+
+    def test_plain_http_reset_url_is_accepted_for_certificate_less_domains(self):
+        # Some production domains cannot get a TLS certificate; HTTPS is
+        # recommended but must not be required for a non-localhost host.
+        config = {
+            'SMTP_HOST': 'smtp.example.com', 'SMTP_FROM_EMAIL': 'accounts@example.com',
+            'SMTP_USERNAME': 'user', 'SMTP_PASSWORD': 'password',
+            'PASSWORD_RESET_URL': 'http://example.com/reset-password',
+        }
+        port, secure = reset_email_settings(config)
+        self.assertEqual((port, secure), (587, False))
 
     def test_smtp_settings_load_from_local_and_private_configuration(self):
         with patch.dict(os.environ, {'SMTP_HOST': 'environment-host'}, clear=True):
