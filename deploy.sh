@@ -163,15 +163,24 @@ echo "✅ Remote permissions hardened."
 echo "🐍 Setting up Python virtual environment and installing backend dependencies..."
 if ! ssh -o ControlPath="$CONTROL_PATH" $USER@$HOST "cd '${REMOTE_DIR}backend' && bash -s" <<'REMOTE_PYTHON_SETUP'
 set -e
+PYTHON_BIN=python3.13
+if ! command -v "$PYTHON_BIN" >/dev/null 2>&1; then
+    echo "Python 3.13 is required on the hosting server (python3.13 was not found)." >&2
+    exit 1
+fi
+if ! "$PYTHON_BIN" -c 'import sys; assert sys.version_info[:2] == (3, 13)'; then
+    echo "Python 3.13 is required on the hosting server; python3.13 is a different version." >&2
+    exit 1
+fi
 if [ -d venv ]; then
-    if ! venv/bin/python -c 'import sys, pip; from pathlib import Path; config = dict(line.strip().split(" = ", 1) for line in Path("venv/pyvenv.cfg").read_text().splitlines() if " = " in line); assert config["version"].split(".")[:2] == [str(sys.version_info.major), str(sys.version_info.minor)]'; then
+    if ! venv/bin/python -c 'import sys, pip; assert sys.version_info[:2] == (3, 13)'; then
         backup=$(mktemp -d venv-backup.XXXXXX)
         mv venv "$backup/venv"
         echo "Preserved incompatible virtualenv in $backup/venv; creating a new one."
     fi
 fi
 if [ ! -d venv ]; then
-    python3 -m venv venv
+    "$PYTHON_BIN" -m venv venv
 fi
 venv/bin/python -m pip install --upgrade pip
 venv/bin/python -m pip install -r requirements.txt

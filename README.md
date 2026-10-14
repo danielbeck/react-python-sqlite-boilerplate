@@ -14,6 +14,11 @@ Modify .env to deploy to different subdirectories or domains (see .env.example)
 
 ## Run locally
 
+The backend and development scripts use Python **3.13.5**. The root
+`.python-version` file selects this version when using pyenv; install it with
+`pyenv install 3.13.5` if it is not already available, then confirm
+`python3 --version` reports `Python 3.13.5`.
+
 Create your project `.env` from `.env.example` and set a random `SECRET_KEY`
 before starting the backend. Local Flask startup loads this key automatically;
 the development fallback key has been removed.
@@ -22,8 +27,7 @@ Backend (development)
 
 ```bash
 cd backend
-# optional: python3 -m venv .venv && source .venv/bin/activate
-pip3 install -r requirements.txt
+python3 -m pip install -r requirements.txt
 python3 init_db.py    # creates database/app.db and sample items
 DEBUG=1 python3 app.py
 ```
@@ -116,6 +120,8 @@ cp .env.example .env
 
 **Note:**
 - The deploy script uses SSH and rsync. You must have SSH access to the configured host.
+- The remote host must provide Python 3.13 (`python3.13`) for backend deployment;
+  any 3.13 patch release is accepted.
 - The backend virtual environment and dependencies are managed automatically on the server.
 - The frontend is built locally and deployed to the correct subdirectory as configured.
 

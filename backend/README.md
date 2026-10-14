@@ -47,16 +47,16 @@ HTTP traffic.
 Authentication uses Flask-Limiter's automatic request hook, not a manual
 `check()` call on its extension, which newer releases store as a set.
 
-Deployment checks that the virtualenv's recorded Python major/minor version
-matches its interpreter and that pip is importable. Hosting Python upgrades can
-invalidate an old virtualenv. In that case the old environment is preserved
-under `backend/venv-backup.*/venv` and a fresh one is created. All dependencies
-are installed using `venv/bin/python -m pip`; installation or import failures
-stop deployment instead of falling back to an incomplete dependency list.
+Local development uses Python 3.13.5. Deployment requires Python 3.13
+(`python3.13`) on the hosting server and accepts any 3.13 patch release. If an
+existing virtualenv uses another major/minor version, it is preserved under
+`backend/venv-backup.*/venv` and a fresh one is created. All dependencies are
+installed using `venv/bin/python -m pip`; installation or import failures stop
+deployment instead of falling back to an incomplete dependency list.
 
 1. Install Python dependencies:
     ```bash
-    pip3 install -r requirements.txt
+    python3 -m pip install -r requirements.txt
     ```
 2. Initialize the database:
     ```bash
@@ -104,8 +104,10 @@ python3 -m unittest backend.test_account_backport backend.test_password_reset
 ```
 
 The frontend uses the Vite `<BASE_URL>api` proxy in development and the CGI URL
-in production. Backend JSON validation errors are shown on the account forms;
-non-JSON responses explicitly report a backend/routing failure.
+in production. Local commands should run with Python 3.13.5 selected by the
+repository's root `.python-version` file. Backend JSON validation errors are
+shown on the account forms; non-JSON responses explicitly report a
+backend/routing failure.
 
 ### Get All Items
 ```bash
